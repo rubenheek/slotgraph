@@ -1,14 +1,38 @@
-use slotmap::{DefaultKey, Key, SlotMap};
+use slotmap::{DefaultKey, Key, KeyData, SlotMap};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct NodeKey<K: Key>(K);
+
+impl<K: Key> From<KeyData> for NodeKey<K> {
+    fn from(k: KeyData) -> Self {
+        Self(K::from(k))
+    }
+}
+
+unsafe impl<K: Key> Key for NodeKey<K> {
+    fn data(&self) -> slotmap::KeyData {
+        self.0.data()
+    }
+}
 
 struct NodeValue<N> {
     value: N,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EdgeKey<K: Key>(K);
+
+impl<K: Key> From<KeyData> for EdgeKey<K> {
+    fn from(k: KeyData) -> Self {
+        Self(K::from(k))
+    }
+}
+
+unsafe impl<K: Key> Key for EdgeKey<K> {
+    fn data(&self) -> slotmap::KeyData {
+        self.0.data()
+    }
+}
 
 struct EdgeValue<K: Key, E> {
     from: NodeKey<K>,
@@ -18,8 +42,8 @@ struct EdgeValue<K: Key, E> {
 
 /// A graph data structure based on the [`SlotMap`] data structure.
 pub struct SlotGraph<K: Key, N, E> {
-    nodes: SlotMap<K, NodeValue<N>>,
-    edges: SlotMap<K, EdgeValue<K, E>>,
+    nodes: SlotMap<NodeKey<K>, NodeValue<N>>,
+    edges: SlotMap<EdgeKey<K>, EdgeValue<K, E>>,
 }
 
 impl<N, E> Default for SlotGraph<DefaultKey, N, E> {
@@ -53,22 +77,22 @@ impl<K: Key, N, E> SlotGraph<K, N, E> {
     ///
     /// Panics if the number of nodes in the graph equals 2³² - 2.
     pub fn insert_node(&mut self, value: N) -> NodeKey<K> {
-        NodeKey(self.nodes.insert(NodeValue { value }))
+        self.nodes.insert(NodeValue { value })
     }
 
     /// Removes a node key from the slot graph, returning the value at the given key if it was not previously removed.
     pub fn remove_node(&mut self, key: NodeKey<K>) -> Option<N> {
-        self.nodes.remove(key.0).map(|n| n.value)
+        self.nodes.remove(key).map(|n| n.value)
     }
 
     /// Returns a reference to the value corresponding to the node key.
     pub fn get_node(&self, key: NodeKey<K>) -> Option<&N> {
-        self.nodes.get(key.0).map(|n| &n.value)
+        self.nodes.get(key).map(|n| &n.value)
     }
 
     /// Returns a mutable reference to the value corresponding to the node key.
     pub fn get_node_mut(&mut self, key: NodeKey<K>) -> Option<&mut N> {
-        self.nodes.get_mut(key.0).map(|n| &mut n.value)
+        self.nodes.get_mut(key).map(|n| &mut n.value)
     }
 
     /// Returns the number of nodes in the slot graph.
@@ -78,18 +102,16 @@ impl<K: Key, N, E> SlotGraph<K, N, E> {
 
     /// An iterator visiting all the node key-value pairs in arbitrary order.
     pub fn iter_nodes(&self) -> impl Iterator<Item = (NodeKey<K>, &N)> {
-        self.nodes.iter().map(|(k, n)| (NodeKey(k), &n.value))
+        self.nodes.iter().map(|(k, n)| (k, &n.value))
     }
 
     /// An iterator visiting all the node key-value pairs in arbitrary order, returning mutable references to the node values.
     pub fn iter_nodes_mut(&mut self) -> impl Iterator<Item = (NodeKey<K>, &mut N)> {
-        self.nodes
-            .iter_mut()
-            .map(|(k, n)| (NodeKey(k), &mut n.value))
+        self.nodes.iter_mut().map(|(k, n)| (k, &mut n.value))
     }
 
     pub fn into_node_iter(self) -> impl Iterator<Item = (NodeKey<K>, N)> {
-        self.nodes.into_iter().map(|(k, n)| (NodeKey(k), n.value))
+        self.nodes.into_iter().map(|(k, n)| (k, n.value))
     }
 }
 
@@ -101,22 +123,22 @@ impl<K: Key, N, E> SlotGraph<K, N, E> {
     ///
     /// Panics if the number of edges in the graph equals 2³² - 2.
     pub fn insert_edge(&mut self, from: NodeKey<K>, to: NodeKey<K>, value: E) -> EdgeKey<K> {
-        EdgeKey(self.edges.insert(EdgeValue { from, to, value }))
+        self.edges.insert(EdgeValue { from, to, value })
     }
 
     /// Removes an edge key from the slot graph, returning the value at the given key if it was not previously removed.
     pub fn remove_edge(&mut self, key: EdgeKey<K>) -> Option<E> {
-        self.edges.remove(key.0).map(|e| e.value)
+        self.edges.remove(key).map(|e| e.value)
     }
 
     /// Returns a reference to the value corresponding to the edge key.
     pub fn get_edge(&self, key: EdgeKey<K>) -> Option<&E> {
-        self.edges.get(key.0).map(|e| &e.value)
+        self.edges.get(key).map(|e| &e.value)
     }
 
     /// Returns a mutable reference to the value corresponding to the edge key.
     pub fn get_edge_mut(&mut self, key: EdgeKey<K>) -> Option<&mut E> {
-        self.edges.get_mut(key.0).map(|e| &mut e.value)
+        self.edges.get_mut(key).map(|e| &mut e.value)
     }
 
     /// Returns the number of edges in the slot graph.
@@ -126,27 +148,25 @@ impl<K: Key, N, E> SlotGraph<K, N, E> {
 
     /// An iterator visiting all the edge key-value pairs in arbitrary order.
     pub fn iter_edges(&self) -> impl Iterator<Item = (EdgeKey<K>, &E)> {
-        self.edges.iter().map(|(k, n)| (EdgeKey(k), &n.value))
+        self.edges.iter().map(|(k, n)| (k, &n.value))
     }
 
     /// An iterator visiting all the edge key-value pairs in arbitrary order, returning mutable references to the edge values.
     pub fn iter_edges_mut(&mut self) -> impl Iterator<Item = (EdgeKey<K>, &mut E)> {
-        self.edges
-            .iter_mut()
-            .map(|(k, e)| (EdgeKey(k), &mut e.value))
+        self.edges.iter_mut().map(|(k, e)| (k, &mut e.value))
     }
 
     pub fn into_edge_iter(self) -> impl Iterator<Item = (EdgeKey<K>, E)> {
-        self.edges.into_iter().map(|(k, e)| (EdgeKey(k), e.value))
+        self.edges.into_iter().map(|(k, e)| (k, e.value))
     }
 
     pub fn get_edge_nodes(&self, key: EdgeKey<K>) -> Option<(NodeKey<K>, NodeKey<K>)> {
-        self.edges.get(key.0).map(|e| (e.from, e.to))
+        self.edges.get(key).map(|e| (e.from, e.to))
     }
 
     pub fn iter_edge_nodes(
         &self,
     ) -> impl Iterator<Item = (EdgeKey<K>, (NodeKey<K>, NodeKey<K>))> + '_ {
-        self.edges.iter().map(|(k, e)| (EdgeKey(k), (e.from, e.to)))
+        self.edges.iter().map(|(k, e)| (k, (e.from, e.to)))
     }
 }
