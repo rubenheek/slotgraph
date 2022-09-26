@@ -3,14 +3,14 @@ use slotmap::{DefaultKey, Key, SlotMap};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NodeKey<K: Key>(K);
 
-struct Node<N> {
+struct NodeValue<N> {
     value: N,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EdgeKey<K: Key>(K);
 
-struct Edge<K: Key, E> {
+struct EdgeValue<K: Key, E> {
     from: NodeKey<K>,
     to: NodeKey<K>,
     value: E,
@@ -18,8 +18,8 @@ struct Edge<K: Key, E> {
 
 /// A graph data structure based on the [`SlotMap`] data structure.
 pub struct SlotGraph<K: Key, N, E> {
-    nodes: SlotMap<K, Node<N>>,
-    edges: SlotMap<K, Edge<K, E>>,
+    nodes: SlotMap<K, NodeValue<N>>,
+    edges: SlotMap<K, EdgeValue<K, E>>,
 }
 
 impl<N, E> Default for SlotGraph<DefaultKey, N, E> {
@@ -43,14 +43,17 @@ impl<K: Key, N, E> SlotGraph<K, N, E> {
             edges: SlotMap::with_key(),
         }
     }
+}
 
+// node methods
+impl<K: Key, N, E> SlotGraph<K, N, E> {
     /// Insert a new node with the value into the slot graph.
     ///
     /// # Panics
     ///
     /// Panics if the number of nodes in the graph equals 2³² - 2.
     pub fn insert_node(&mut self, value: N) -> NodeKey<K> {
-        NodeKey(self.nodes.insert(Node { value }))
+        NodeKey(self.nodes.insert(NodeValue { value }))
     }
 
     /// Removes a node key from the slot graph, returning the value at the given key if it was not previously removed.
@@ -68,14 +71,17 @@ impl<K: Key, N, E> SlotGraph<K, N, E> {
         self.nodes.get_mut(key.0).map(|n| &mut n.value)
     }
 
+    /// Returns the number of nodes in the slot graph.
     pub fn node_len(&self) -> usize {
         self.nodes.len()
     }
 
+    /// An iterator visiting all the node key-value pairs in arbitrary order.
     pub fn iter_nodes(&self) -> impl Iterator<Item = (NodeKey<K>, &N)> {
         self.nodes.iter().map(|(k, n)| (NodeKey(k), &n.value))
     }
 
+    /// An iterator visiting all the node key-value pairs in arbitrary order, returning mutable references to the node values.
     pub fn iter_nodes_mut(&mut self) -> impl Iterator<Item = (NodeKey<K>, &mut N)> {
         self.nodes
             .iter_mut()
@@ -85,14 +91,17 @@ impl<K: Key, N, E> SlotGraph<K, N, E> {
     pub fn into_node_iter(self) -> impl Iterator<Item = (NodeKey<K>, N)> {
         self.nodes.into_iter().map(|(k, n)| (NodeKey(k), n.value))
     }
+}
 
+// edge methods
+impl<K: Key, N, E> SlotGraph<K, N, E> {
     /// Insert a new edge with the given value into the slot graph.
     ///
     /// # Panics
     ///
     /// Panics if the number of edges in the graph equals 2³² - 2.
     pub fn insert_edge(&mut self, from: NodeKey<K>, to: NodeKey<K>, value: E) -> EdgeKey<K> {
-        EdgeKey(self.edges.insert(Edge { from, to, value }))
+        EdgeKey(self.edges.insert(EdgeValue { from, to, value }))
     }
 
     /// Removes an edge key from the slot graph, returning the value at the given key if it was not previously removed.
@@ -110,14 +119,17 @@ impl<K: Key, N, E> SlotGraph<K, N, E> {
         self.edges.get_mut(key.0).map(|e| &mut e.value)
     }
 
+    /// Returns the number of edges in the slot graph.
     pub fn edge_len(&self) -> usize {
         self.edges.len()
     }
 
+    /// An iterator visiting all the edge key-value pairs in arbitrary order.
     pub fn iter_edges(&self) -> impl Iterator<Item = (EdgeKey<K>, &E)> {
         self.edges.iter().map(|(k, n)| (EdgeKey(k), &n.value))
     }
 
+    /// An iterator visiting all the edge key-value pairs in arbitrary order, returning mutable references to the edge values.
     pub fn iter_edges_mut(&mut self) -> impl Iterator<Item = (EdgeKey<K>, &mut E)> {
         self.edges
             .iter_mut()
@@ -138,6 +150,3 @@ impl<K: Key, N, E> SlotGraph<K, N, E> {
         self.edges.iter().map(|(k, e)| (EdgeKey(k), (e.from, e.to)))
     }
 }
-
-// TODO: provide trait to auto-implement methods?
-// TODO: implement graphs using other slotmap types?
